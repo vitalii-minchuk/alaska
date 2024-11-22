@@ -23,9 +23,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to connect db: %v", err)
 	}
-
 	initStorage(db)
-
 	server := api.NewAPIServer(":8080", db)
 	if err := server.Run(); err != nil {
 		log.Fatalf("Failed to run server: %v", err)
@@ -37,6 +35,5 @@ func initStorage(db *sql.DB) {
 	if err != nil {
 		log.Fatalf("Failed to init db: %v", err)
 	}
-
 	log.Println("DB successfully connected!")
 }

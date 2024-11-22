@@ -12,6 +12,5 @@ func NewMySQLStorage(cfg mysql.Config) (*sql.DB, error) {
 	if err != nil {
 		log.Fatalf("Failed to run server: %v", err)
 	}
-
 	return db, nil
 }
