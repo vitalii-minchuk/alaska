@@ -1,0 +1,10 @@
+services:
+  db:
+    image: mysql:8.0
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root_password
+      MYSQL_DATABASE: alaska
+      MYSQL_USER: my_db_user
+      MYSQL_PASSWORD: my_db_password
