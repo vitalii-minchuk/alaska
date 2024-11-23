@@ -3,9 +3,11 @@ package product
 import (
 	"fmt"
 	"net/http"
+	"strconv"
 
-	"github.com/go-playground/validator"
+	"github.com/go-playground/validator/v10"
 	"github.com/gorilla/mux"
+	"github.com/vitalii-minchuk/alaska/services/auth"
 	"github.com/vitalii-minchuk/alaska/types"
 	"github.com/vitalii-minchuk/alaska/utils"
 )
@@ -20,40 +22,64 @@ func NewHandler(store types.ProductStore, userStore types.UserStore) *Handler {
 }
 
 func (h *Handler) RegisterRoutes(router *mux.Router) {
-	router.HandleFunc("/products", h.createProduct).Methods(http.MethodPost)
-	router.HandleFunc("/products", h.getProducts).Methods(http.MethodGet)
+	router.HandleFunc("/products", h.handleGetProducts).Methods(http.MethodGet)
+	router.HandleFunc("/products/{productID}", h.handleGetProduct).Methods(http.MethodGet)
+
+	// admin routes
+	router.HandleFunc("/products", auth.WithJWTAuth(h.handleCreateProduct, h.userStore)).Methods(http.MethodPost)
 }
 
-func (h *Handler) createProduct(w http.ResponseWriter, r *http.Request) {
-	var payload types.CreateProductPayload
-	if err := utils.ParseJSON(r, &payload); err != nil {
+func (h *Handler) handleGetProducts(w http.ResponseWriter, r *http.Request) {
+	products, err := h.store.GetProducts()
+	if err != nil {
+		utils.WrightError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	utils.WrightJSON(w, http.StatusOK, products)
+}
+
+func (h *Handler) handleGetProduct(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	str, ok := vars["productID"]
+	if !ok {
+		utils.WrightError(w, http.StatusBadRequest, fmt.Errorf("missing product ID"))
+		return
+	}
+
+	productID, err := strconv.Atoi(str)
+	if err != nil {
+		utils.WrightError(w, http.StatusBadRequest, fmt.Errorf("invalid product ID"))
+		return
+	}
+
+	product, err := h.store.GetProductByID(productID)
+	if err != nil {
+		utils.WrightError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	utils.WrightJSON(w, http.StatusOK, product)
+}
+
+func (h *Handler) handleCreateProduct(w http.ResponseWriter, r *http.Request) {
+	var product types.CreateProductPayload
+	if err := utils.ParseJSON(r, &product); err != nil {
 		utils.WrightError(w, http.StatusBadRequest, err)
 		return
 	}
-	if err := utils.Validate.Struct(payload); err != nil {
-		errors := err.(validator.ValidationErrors)
-		utils.WrightError(w, http.StatusBadRequest, fmt.Errorf("invalid payload %v", errors))
-		return
-	}
-	err := h.store.CreateProduct(&types.Product{
-		Name:        payload.Name,
-		Description: payload.Description,
-		Quantity:    payload.Quantity,
-		Image:       payload.Image,
-		Price:       payload.Price,
-	})
-	if err != nil {
-		utils.WrightError(w, http.StatusInternalServerError, err)
-		return
-	}
-	utils.WrightJSON(w, http.StatusCreated, nil)
-}
 
-func (h *Handler) getProducts(w http.ResponseWriter, r *http.Request) {
-	ps, err := h.store.GetProducts()
+	if err := utils.Validate.Struct(product); err != nil {
+		errors := err.(validator.ValidationErrors)
+		utils.WrightError(w, http.StatusBadRequest, fmt.Errorf("invalid payload: %v", errors))
+		return
+	}
+
+	err := h.store.CreateProduct(product)
 	if err != nil {
 		utils.WrightError(w, http.StatusInternalServerError, err)
 		return
 	}
-	utils.WrightJSON(w, http.StatusOK, ps)
+
+	utils.WrightJSON(w, http.StatusCreated, product)
 }
